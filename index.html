@@ -10,7 +10,6 @@
       padding: 0;
       overflow: hidden;
       touch-action: none;
-      transition: background-color 1.5s ease;
     }
     canvas {
       display: block;
@@ -61,7 +60,7 @@
           : 1 - Math.pow(-2 * progress + 2, 2) / 2;
         
         // Maksymalny promień to przekątna ekranu
-        const maxRadius = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) / 2;
+        const maxRadius = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
         winnerAnimationRadius = winnerTouch.radius + easeInOut * (maxRadius - winnerTouch.radius);
         
         // Rysowanie zwycięskiego kółka
@@ -87,7 +86,7 @@
         requestAnimationFrame(drawCircles);
       } else {
         // Po zakończeniu animacji ustaw tło na kolor zwycięskiego kółka
-        //document.body.style.backgroundColor = winnerTouch.color;
+        document.body.style.backgroundColor = winnerTouch.color;
         // Zakończ animację
         winnerAnimation = false;
       }
