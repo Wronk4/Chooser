@@ -61,7 +61,7 @@
           : 1 - Math.pow(-2 * progress + 2, 2) / 2;
         
         // Maksymalny promień to przekątna ekranu
-        const maxRadius = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) / 2;
+        const maxRadius = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
         winnerAnimationRadius = winnerTouch.radius + easeInOut * (maxRadius - winnerTouch.radius);
         
         // Rysowanie zwycięskiego kółka
