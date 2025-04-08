@@ -34,6 +34,11 @@
   let winnerTouch = null;
   let winnerAnimationStartTime = 0;
   let winnerAnimationRadius = 0;
+  
+  // Dodane dla pulsowania
+  let pulsatingAnimation = false;
+  let pulsatingStartTime = 0;
+  const pulsatingDuration = 3000; // Czas trwania pulsowania przed wyborem zwycięzcy
 
   function getRandomColor() {
     const r = Math.floor(Math.random() * 200) + 30;
@@ -90,6 +95,55 @@
         // Zakończ animację
         winnerAnimation = false;
       }
+    } else if (pulsatingAnimation) {
+      // Animacja pulsowania przed wyborem zwycięzcy
+      const elapsedTime = currentTime - pulsatingStartTime;
+      
+      if (elapsedTime < pulsatingDuration) {
+        // Obliczanie wartości pulsowania dla każdego kółka
+        const progress = elapsedTime / pulsatingDuration;
+        
+        for (const id in touches) {
+          const touch = touches[id];
+          
+          // Każde kółko pulsuje w innym tempie dla lepszego efektu
+          const pulseSpeed = 3 + parseFloat(id) % 5; // Różne prędkości dla różnych kółek
+          const pulsePhase = (id.charCodeAt(0) || 0) % Math.PI; // Różne fazy pulsowania
+          
+          // Szybsze pulsowanie pod koniec animacji
+          const frequency = 3 + progress * 10;
+          const pulseFactor = Math.sin(frequency * progress * Math.PI * pulseSpeed + pulsePhase);
+          
+          // Pulsowanie w zakresie 0.8 do 1.2 oryginalnego promienia
+          const pulseRadius = touch.targetRadius * (0.8 + 0.4 * (0.5 + 0.5 * pulseFactor));
+          
+          // Rysowanie pulsującego kółka
+          ctx.beginPath();
+          ctx.arc(touch.x, touch.y, pulseRadius, 0, Math.PI * 2);
+          ctx.fillStyle = touch.color;
+          ctx.fill();
+          
+          // Dodanie lekkiego efektu poświaty dla lepszego efektu pulsowania
+          const glowRadius = pulseRadius * 1.1;
+          const gradient = ctx.createRadialGradient(
+            touch.x, touch.y, pulseRadius * 0.7,
+            touch.x, touch.y, glowRadius
+          );
+          gradient.addColorStop(0, 'transparent');
+          gradient.addColorStop(1, touch.color + '44');  // Dodanie przezroczystości
+          
+          ctx.beginPath();
+          ctx.arc(touch.x, touch.y, glowRadius, 0, Math.PI * 2);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+        }
+        
+        requestAnimationFrame(drawCircles);
+      } else {
+        // Po zakończeniu animacji pulsowania, przejdź do wyboru zwycięzcy
+        pulsatingAnimation = false;
+        startWinnerSelection();
+      }
     } else {
       // Normalne rysowanie kółek z animacją wejścia
       let animationInProgress = false;
@@ -125,9 +179,15 @@
     }
   }
 
-  function fillScreenWithRandomTouchColor() {
+  function startPulsatingAnimation() {
+    pulsatingAnimation = true;
+    pulsatingStartTime = Date.now();
+    requestAnimationFrame(drawCircles);
+  }
+
+  function startWinnerSelection() {
     const touchArray = Object.values(touches);
-    if (touchArray.length >= 2 && !backgroundColorChanged) {
+    if (touchArray.length >= 2) {
       // Wybierz losowe kółko jako zwycięzcę
       const winnerIndex = Math.floor(Math.random() * touchArray.length);
       winnerTouch = touchArray[winnerIndex];
@@ -139,6 +199,13 @@
       
       // Uruchom animację
       requestAnimationFrame(drawCircles);
+    }
+  }
+
+  function fillScreenWithRandomTouchColor() {
+    if (Object.values(touches).length >= 2 && !backgroundColorChanged && !pulsatingAnimation) {
+      // Najpierw rozpocznij animację pulsowania
+      startPulsatingAnimation();
     }
   }
 
@@ -157,7 +224,7 @@
   }
 
   function handleTouchStart(event) {
-    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj nowe dotknięcia po rozpoczęciu animacji zwycięzcy
+    if (winnerAnimation || backgroundColorChanged || pulsatingAnimation) return; // Ignoruj nowe dotknięcia po rozpoczęciu animacji
     
     event.preventDefault();
     for (let i = 0; i < event.changedTouches.length; i++) {
@@ -176,7 +243,7 @@
   }
 
   function handleTouchMove(event) {
-    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj ruchy po rozpoczęciu animacji zwycięzcy
+    if (winnerAnimation || backgroundColorChanged || pulsatingAnimation) return; // Ignoruj ruchy po rozpoczęciu animacji
     
     event.preventDefault();
     for (let i = 0; i < event.touches.length; i++) {
@@ -190,7 +257,7 @@
   }
 
   function handleTouchEnd(event) {
-    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj zakończenia dotknięć po rozpoczęciu animacji zwycięzcy
+    if (winnerAnimation || backgroundColorChanged || pulsatingAnimation) return; // Ignoruj zakończenia dotknięć po rozpoczęciu animacji
     
     for (let i = 0; i < event.changedTouches.length; i++) {
       const touch = event.changedTouches[i];
@@ -209,7 +276,7 @@
   // Mysz (dla PC)
   let mouseDown = false;
   canvas.addEventListener('mousedown', (e) => {
-    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj kliknięcia po rozpoczęciu animacji zwycięzcy
+    if (winnerAnimation || backgroundColorChanged || pulsatingAnimation) return; // Ignoruj kliknięcia po rozpoczęciu animacji
     
     mouseDown = true;
     touches['mouse'] = { 
@@ -225,7 +292,7 @@
   });
 
   canvas.addEventListener('mousemove', (e) => {
-    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj ruchy myszy po rozpoczęciu animacji zwycięzcy
+    if (winnerAnimation || backgroundColorChanged || pulsatingAnimation) return; // Ignoruj ruchy myszy po rozpoczęciu animacji
     
     if (mouseDown) {
       touches['mouse'].x = e.clientX;
@@ -235,7 +302,7 @@
   });
 
   canvas.addEventListener('mouseup', () => {
-    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj zdarzenia po rozpoczęciu animacji zwycięzcy
+    if (winnerAnimation || backgroundColorChanged || pulsatingAnimation) return; // Ignoruj zdarzenia po rozpoczęciu animacji
     
     mouseDown = false;
     delete touches['mouse'];
@@ -260,6 +327,7 @@
     // Reset stanu aplikacji
     backgroundColorChanged = false;
     winnerAnimation = false;
+    pulsatingAnimation = false;
     winnerTouch = null;
     for (const id in touches) {
       delete touches[id];
