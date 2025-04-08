@@ -10,6 +10,7 @@
       padding: 0;
       overflow: hidden;
       touch-action: none;
+      transition: background-color 1.5s ease; /* Animacja zmiany koloru tła */
     }
     canvas {
       display: block;
@@ -25,10 +26,11 @@
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  const touches = {}; // { id: { x, y, color } }
+  const touches = {}; // { id: { x, y, color, radius, targetRadius, createdAt } }
 
   let freezeCheckTimeout = null;
   let freezeTriggered = false;
+  let backgroundColorChanged = false;
 
   function getRandomColor() {
     const r = Math.floor(Math.random() * 200) + 30;
@@ -39,27 +41,80 @@
 
   function drawCircles() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const currentTime = Date.now();
+    
     for (const id in touches) {
-      const { x, y, color } = touches[id];
+      const touch = touches[id];
+      
+      // Aktualizacja promienia dla animacji
+      const elapsedTime = currentTime - touch.createdAt;
+      const animDuration = 500; // czas trwania animacji w ms
+      
+      if (elapsedTime < animDuration) {
+        // Animacja wejścia - płynne powiększanie
+        const progress = elapsedTime / animDuration;
+        // Funkcja ease-out cubic dla płynniejszej animacji
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        touch.radius = touch.targetRadius * easeOut;
+      } else {
+        touch.radius = touch.targetRadius;
+      }
+      
+      // Rysowanie koła
       ctx.beginPath();
-      ctx.arc(x, y, 30, 0, Math.PI * 2);
-      ctx.fillStyle = color;
+      ctx.arc(touch.x, touch.y, touch.radius, 0, Math.PI * 2);
+      ctx.fillStyle = touch.color;
       ctx.fill();
+    }
+    
+    // Wywołaj ponownie rysowanie, jeśli jakakolwiek animacja jest w trakcie
+    let animationInProgress = false;
+    for (const id in touches) {
+      if (currentTime - touches[id].createdAt < 500) {
+        animationInProgress = true;
+        break;
+      }
+    }
+    
+    if (animationInProgress) {
+      requestAnimationFrame(drawCircles);
     }
   }
 
-  let backgroundColorChanged = false;  // Flaga sprawdzająca, czy tło zostało zmienione
-
-function fillScreenWithRandomTouchColor() {
-  const touchArray = Object.values(touches);
-  if (touchArray.length >= 2 && !backgroundColorChanged) {  // Jeśli tło jeszcze nie zostało zmienione
-    const randomTouch = touchArray[Math.floor(Math.random() * touchArray.length)];
-    ctx.fillStyle = randomTouch.color;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    document.body.style.backgroundColor = randomTouch.color;  // Zmiana koloru tła
-    backgroundColorChanged = true;  // Ustawienie flagi na true, aby tło nie zmieniało się już więcej
+  function fillScreenWithRandomTouchColor() {
+    const touchArray = Object.values(touches);
+    if (touchArray.length >= 2 && !backgroundColorChanged) {
+      const randomTouch = touchArray[Math.floor(Math.random() * touchArray.length)];
+      
+      // Najpierw rysujemy przezroczystą warstwę, która będzie animowana
+      const overlay = document.createElement('div');
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100%';
+      overlay.style.height = '100%';
+      overlay.style.backgroundColor = randomTouch.color;
+      overlay.style.opacity = '0';
+      overlay.style.transition = 'opacity 1.5s ease';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.zIndex = '1';
+      document.body.appendChild(overlay);
+      
+      // Uruchamiamy animację po dodaniu elementu do DOM
+      setTimeout(() => {
+        overlay.style.opacity = '1';
+      }, 10);
+      
+      // Po zakończeniu animacji, ustawiamy faktyczne tło i usuwamy warstwę
+      setTimeout(() => {
+        document.body.style.backgroundColor = randomTouch.color;
+        document.body.removeChild(overlay);
+      }, 1500);
+      
+      backgroundColorChanged = true;
+    }
   }
-}
 
   function resetFreezeCheck() {
     if (freezeCheckTimeout) clearTimeout(freezeCheckTimeout);
@@ -82,7 +137,10 @@ function fillScreenWithRandomTouchColor() {
       touches[touch.identifier] = {
         x: touch.clientX,
         y: touch.clientY,
-        color: getRandomColor()
+        color: getRandomColor(),
+        radius: 0, // Początkowy promień
+        targetRadius: 30, // Docelowy promień
+        createdAt: Date.now() // Czas utworzenia dla animacji
       };
     }
     drawCircles();
@@ -120,7 +178,14 @@ function fillScreenWithRandomTouchColor() {
   let mouseDown = false;
   canvas.addEventListener('mousedown', (e) => {
     mouseDown = true;
-    touches['mouse'] = { x: e.clientX, y: e.clientY, color: getRandomColor() };
+    touches['mouse'] = { 
+      x: e.clientX, 
+      y: e.clientY, 
+      color: getRandomColor(),
+      radius: 0, // Początkowy promień
+      targetRadius: 30, // Docelowy promień
+      createdAt: Date.now() // Czas utworzenia dla animacji
+    };
     drawCircles();
     resetFreezeCheck();
   });
