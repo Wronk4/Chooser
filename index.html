@@ -10,7 +10,7 @@
       padding: 0;
       overflow: hidden;
       touch-action: none;
-      transition: background-color 1.5s ease; /* Animacja zmiany koloru tła */
+      transition: background-color 1.5s ease;
     }
     canvas {
       display: block;
@@ -31,6 +31,10 @@
   let freezeCheckTimeout = null;
   let freezeTriggered = false;
   let backgroundColorChanged = false;
+  let winnerAnimation = false;
+  let winnerTouch = null;
+  let winnerAnimationStartTime = 0;
+  let winnerAnimationRadius = 0;
 
   function getRandomColor() {
     const r = Math.floor(Math.random() * 200) + 30;
@@ -44,75 +48,98 @@
     
     const currentTime = Date.now();
     
-    for (const id in touches) {
-      const touch = touches[id];
-      
-      // Aktualizacja promienia dla animacji
-      const elapsedTime = currentTime - touch.createdAt;
-      const animDuration = 500; // czas trwania animacji w ms
+    if (winnerAnimation) {
+      // Animacja zwycięskiego kółka
+      const elapsedTime = currentTime - winnerAnimationStartTime;
+      const animDuration = 2000; // czas trwania animacji rozszerzania w ms
       
       if (elapsedTime < animDuration) {
-        // Animacja wejścia - płynne powiększanie
+        // Obliczanie rozmiaru rozszerzającego się kółka
         const progress = elapsedTime / animDuration;
-        // Funkcja ease-out cubic dla płynniejszej animacji
-        const easeOut = 1 - Math.pow(1 - progress, 3);
-        touch.radius = touch.targetRadius * easeOut;
+        const easeInOut = progress < 0.5 
+          ? 2 * progress * progress 
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        
+        // Maksymalny promień to przekątna ekranu
+        const maxRadius = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) / 2;
+        winnerAnimationRadius = winnerTouch.radius + easeInOut * (maxRadius - winnerTouch.radius);
+        
+        // Rysowanie zwycięskiego kółka
+        ctx.beginPath();
+        ctx.arc(winnerTouch.x, winnerTouch.y, winnerAnimationRadius, 0, Math.PI * 2);
+        ctx.fillStyle = winnerTouch.color;
+        ctx.fill();
+        
+        // Rysowanie pozostałych kółek, które się zmniejszają
+        for (const id in touches) {
+          const touch = touches[id];
+          if (touch !== winnerTouch) {
+            // Zmniejszanie innych kółek - odwrotne easeInOut dla efektu zanikania
+            const shrinkRadius = touch.radius * (1 - easeInOut);
+            
+            ctx.beginPath();
+            ctx.arc(touch.x, touch.y, shrinkRadius, 0, Math.PI * 2);
+            ctx.fillStyle = touch.color;
+            ctx.fill();
+          }
+        }
+        
+        requestAnimationFrame(drawCircles);
       } else {
-        touch.radius = touch.targetRadius;
+        // Po zakończeniu animacji ustaw tło na kolor zwycięskiego kółka
+        document.body.style.backgroundColor = winnerTouch.color;
+        // Zakończ animację
+        winnerAnimation = false;
+      }
+    } else {
+      // Normalne rysowanie kółek z animacją wejścia
+      let animationInProgress = false;
+      
+      for (const id in touches) {
+        const touch = touches[id];
+        
+        // Aktualizacja promienia dla animacji
+        const elapsedTime = currentTime - touch.createdAt;
+        const animDuration = 500; // czas trwania animacji w ms
+        
+        if (elapsedTime < animDuration) {
+          // Animacja wejścia - płynne powiększanie
+          const progress = elapsedTime / animDuration;
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          touch.radius = touch.targetRadius * easeOut;
+          animationInProgress = true;
+        } else {
+          touch.radius = touch.targetRadius;
+        }
+        
+        // Rysowanie koła
+        ctx.beginPath();
+        ctx.arc(touch.x, touch.y, touch.radius, 0, Math.PI * 2);
+        ctx.fillStyle = touch.color;
+        ctx.fill();
       }
       
-      // Rysowanie koła
-      ctx.beginPath();
-      ctx.arc(touch.x, touch.y, touch.radius, 0, Math.PI * 2);
-      ctx.fillStyle = touch.color;
-      ctx.fill();
-    }
-    
-    // Wywołaj ponownie rysowanie, jeśli jakakolwiek animacja jest w trakcie
-    let animationInProgress = false;
-    for (const id in touches) {
-      if (currentTime - touches[id].createdAt < 500) {
-        animationInProgress = true;
-        break;
+      // Wywołaj ponownie rysowanie, jeśli jakakolwiek animacja jest w trakcie
+      if (animationInProgress) {
+        requestAnimationFrame(drawCircles);
       }
-    }
-    
-    if (animationInProgress) {
-      requestAnimationFrame(drawCircles);
     }
   }
 
   function fillScreenWithRandomTouchColor() {
     const touchArray = Object.values(touches);
     if (touchArray.length >= 2 && !backgroundColorChanged) {
-      const randomTouch = touchArray[Math.floor(Math.random() * touchArray.length)];
+      // Wybierz losowe kółko jako zwycięzcę
+      const winnerIndex = Math.floor(Math.random() * touchArray.length);
+      winnerTouch = touchArray[winnerIndex];
       
-      // Najpierw rysujemy przezroczystą warstwę, która będzie animowana
-      const overlay = document.createElement('div');
-      overlay.style.position = 'fixed';
-      overlay.style.top = '0';
-      overlay.style.left = '0';
-      overlay.style.width = '100%';
-      overlay.style.height = '100%';
-      overlay.style.backgroundColor = randomTouch.color;
-      overlay.style.opacity = '0';
-      overlay.style.transition = 'opacity 1.5s ease';
-      overlay.style.pointerEvents = 'none';
-      overlay.style.zIndex = '1';
-      document.body.appendChild(overlay);
-      
-      // Uruchamiamy animację po dodaniu elementu do DOM
-      setTimeout(() => {
-        overlay.style.opacity = '1';
-      }, 10);
-      
-      // Po zakończeniu animacji, ustawiamy faktyczne tło i usuwamy warstwę
-      setTimeout(() => {
-        document.body.style.backgroundColor = randomTouch.color;
-        document.body.removeChild(overlay);
-      }, 1500);
-      
+      // Rozpocznij animację zwycięskiego kółka
+      winnerAnimation = true;
+      winnerAnimationStartTime = Date.now();
       backgroundColorChanged = true;
+      
+      // Uruchom animację
+      requestAnimationFrame(drawCircles);
     }
   }
 
@@ -131,6 +158,8 @@
   }
 
   function handleTouchStart(event) {
+    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj nowe dotknięcia po rozpoczęciu animacji zwycięzcy
+    
     event.preventDefault();
     for (let i = 0; i < event.changedTouches.length; i++) {
       const touch = event.changedTouches[i];
@@ -148,6 +177,8 @@
   }
 
   function handleTouchMove(event) {
+    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj ruchy po rozpoczęciu animacji zwycięzcy
+    
     event.preventDefault();
     for (let i = 0; i < event.touches.length; i++) {
       const touch = event.touches[i];
@@ -160,6 +191,8 @@
   }
 
   function handleTouchEnd(event) {
+    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj zakończenia dotknięć po rozpoczęciu animacji zwycięzcy
+    
     for (let i = 0; i < event.changedTouches.length; i++) {
       const touch = event.changedTouches[i];
       delete touches[touch.identifier];
@@ -177,6 +210,8 @@
   // Mysz (dla PC)
   let mouseDown = false;
   canvas.addEventListener('mousedown', (e) => {
+    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj kliknięcia po rozpoczęciu animacji zwycięzcy
+    
     mouseDown = true;
     touches['mouse'] = { 
       x: e.clientX, 
@@ -191,6 +226,8 @@
   });
 
   canvas.addEventListener('mousemove', (e) => {
+    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj ruchy myszy po rozpoczęciu animacji zwycięzcy
+    
     if (mouseDown) {
       touches['mouse'].x = e.clientX;
       touches['mouse'].y = e.clientY;
@@ -199,6 +236,8 @@
   });
 
   canvas.addEventListener('mouseup', () => {
+    if (winnerAnimation || backgroundColorChanged) return; // Ignoruj zdarzenia po rozpoczęciu animacji zwycięzcy
+    
     mouseDown = false;
     delete touches['mouse'];
     drawCircles();
@@ -210,6 +249,26 @@
     canvas.height = window.innerHeight;
     drawCircles();
   });
+
+  // Dodanie przycisku reset dla testowania (opcjonalne)
+  const resetButton = document.createElement('button');
+  resetButton.innerText = 'Reset';
+  resetButton.style.position = 'fixed';
+  resetButton.style.bottom = '10px';
+  resetButton.style.right = '10px';
+  resetButton.style.zIndex = '10';
+  resetButton.addEventListener('click', () => {
+    // Reset stanu aplikacji
+    backgroundColorChanged = false;
+    winnerAnimation = false;
+    winnerTouch = null;
+    for (const id in touches) {
+      delete touches[id];
+    }
+    document.body.style.backgroundColor = '';
+    drawCircles();
+  });
+  document.body.appendChild(resetButton);
 </script>
 </body>
 </html>
