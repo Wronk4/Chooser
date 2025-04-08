@@ -48,13 +48,16 @@
     }
   }
 
-  function fillScreenWithRandomTouchColor() {
+  let backgroundColorChanged = false;  // Flaga sprawdzająca, czy tło zostało zmienione
+
+function fillScreenWithRandomTouchColor() {
   const touchArray = Object.values(touches);
-  if (touchArray.length >= 2) {
+  if (touchArray.length >= 2 && !backgroundColorChanged) {  // Jeśli tło jeszcze nie zostało zmienione
     const randomTouch = touchArray[Math.floor(Math.random() * touchArray.length)];
     ctx.fillStyle = randomTouch.color;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    document.body.style.backgroundColor = randomTouch.color; // <--- ZMIANA TŁA STRONY
+    document.body.style.backgroundColor = randomTouch.color;  // Zmiana koloru tła
+    backgroundColorChanged = true;  // Ustawienie flagi na true, aby tło nie zmieniało się już więcej
   }
 }
 
