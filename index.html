@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Dotykowe kółka</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const touches = {}; // { id: { x, y, color } }
+  const colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'yellow'];
+
+  let freezeCheckTimeout = null;
+  let freezeTriggered = false;
+
+  function getColor(id) {
+    return colors[id % colors.length];
+  }
+
+  function drawCircles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const id in touches) {
+      const { x, y, color } = touches[id];
+      ctx.beginPath();
+      ctx.arc(x, y, 30, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+  }
+
+  function fillScreenWithRandomTouchColor() {
+    const touchArray = Object.values(touches);
+    if (touchArray.length >= 2) {
+      const randomTouch = touchArray[Math.floor(Math.random() * touchArray.length)];
+      ctx.fillStyle = randomTouch.color;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  function resetFreezeCheck() {
+    if (freezeCheckTimeout) {
+      clearTimeout(freezeCheckTimeout);
+    }
+    freezeTriggered = false;
+
+    if (Object.keys(touches).length >= 2) {
+      freezeCheckTimeout = setTimeout(() => {
+        if (!freezeTriggered) {
+          freezeTriggered = true;
+          fillScreenWithRandomTouchColor();
+        }
+      }, 5000);
+    }
+  }
+
+  function handleTouchMove(event) {
+    event.preventDefault();
+    for (let i = 0; i < event.touches.length; i++) {
+      const touch = event.touches[i];
+      touches[touch.identifier] = {
+        x: touch.clientX,
+        y: touch.clientY,
+        color: touches[touch.identifier]?.color || getColor(touch.identifier)
+      };
+    }
+    drawCircles();
+    resetFreezeCheck();
+  }
+
+  function handleTouchEnd(event) {
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i];
+      delete touches[touch.identifier];
+    }
+    drawCircles();
+    resetFreezeCheck();
+  }
+
+  // Obsługa dotyku
+  canvas.addEventListener('touchstart', handleTouchMove, false);
+  canvas.addEventListener('touchmove', handleTouchMove, false);
+  canvas.addEventListener('touchend', handleTouchEnd, false);
+  canvas.addEventListener('touchcancel', handleTouchEnd, false);
+
+  // Obsługa myszy (dla testów na PC)
+  let mouseDown = false;
+  canvas.addEventListener('mousedown', (e) => {
+    mouseDown = true;
+    touches['mouse'] = { x: e.clientX, y: e.clientY, color: getColor(999) };
+    drawCircles();
+    resetFreezeCheck();
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (mouseDown) {
+      touches['mouse'] = { x: e.clientX, y: e.clientY, color: getColor(999) };
+      drawCircles();
+    }
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    mouseDown = false;
+    delete touches['mouse'];
+    drawCircles();
+    resetFreezeCheck();
+  });
+
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    drawCircles();
+  });
+</script>
+</body>
+</html>
